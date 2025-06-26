@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="processor" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="otel-demo.processor.main" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="ru.cft.otel.demo.Application" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

@@ -1,0 +1,22 @@
+subprojects {
+    apply plugin: 'java'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        def springBootVersion = '3.5.0'
+        implementation platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
+        annotationProcessor platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
+
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+    }
+}

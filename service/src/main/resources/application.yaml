@@ -1,0 +1,11 @@
+spring:
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: otel_demo
+    password: otel_demo
+    virtual-host: otel_demo
+  datasource:
+    url: jdbc:postgresql://localhost:5432/otel_demo
+    username: otel_demo
+    password: otel_demo

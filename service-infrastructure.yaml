@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+    - "5432:5432"
+    environment:
+    - POSTGRES_HOST_AUTH_METHOD=trust
+    configs:
+    - source: postgres_init
+      target: /docker-entrypoint-initdb.d/init.sql
+  rabbit:
+    image: rabbitmq:4-management-alpine
+    ports:
+    - "5672:5672"
+    - "15672:15672"
+    configs:
+    - source: rabbitmq_conf
+      target: /etc/rabbitmq/rabbitmq.conf
+    - source: rabbitmq_definitions
+      target: /etc/rabbitmq/definitions.json
+
+configs:
+  postgres_init:
+    content: |
+      create user otel_demo with login password 'otel_demo';  
+      create database otel_demo owner otel_demo encoding 'utf8';
+      \connect otel_demo;
+      create table event
+      (
+          id     varchar(36) primary key,
+          status varchar(32) not null,
+          body   text        not null
+      );
+      alter table event owner to otel_demo;
+  rabbitmq_conf:
+    content: |
+      load_definitions = /etc/rabbitmq/definitions.json
+  rabbitmq_definitions:
+    content: |
+      {
+        "users": [
+          {
+            "name": "otel_demo",
+            "password": "otel_demo",
+            "tags": [
+              "administrator"
+            ]
+          }
+        ],
+        "vhosts": [
+          {
+            "name": "otel_demo"
+          }
+        ],
+        "permissions": [
+          {
+            "user": "otel_demo",
+            "vhost": "otel_demo",
+            "configure": ".*",
+            "write": ".*",
+            "read": ".*"
+          }
+        ],
+        "queues": [
+          {
+            "vhost": "otel_demo",
+            "name": "events",
+            "durable": true,
+            "auto_delete": false
+          }
+        ],
+        "exchanges": [
+          {
+            "vhost": "otel_demo",
+            "name": "events",
+            "type": "fanout",
+            "durable": true,
+            "auto_delete": false
+          }
+        ],
+        "bindings": [
+          {
+            "vhost": "otel_demo",
+            "source": "events",
+            "destination": "events",
+            "destination_type": "queue"
+          }
+        ]
+      }

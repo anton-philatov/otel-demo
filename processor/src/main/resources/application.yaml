@@ -1,0 +1,7 @@
+spring:
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: otel_demo
+    password: otel_demo
+    virtual-host: otel_demo
