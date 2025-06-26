@@ -2,4 +2,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
     implementation 'org.apache.httpcomponents.client5:httpclient5'
+
+    implementation 'io.opentelemetry:opentelemetry-sdk'
 }
