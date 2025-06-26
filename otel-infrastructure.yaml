@@ -1,0 +1,268 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.128.0
+    configs:
+    - source: otel_collector_conf
+      target: /etc/otelcol/config.yaml
+    ports:
+    - "4318:4318"
+    - "8889:8889"
+  jaeger:
+    image: jaegertracing/jaeger:2.7.0
+    ports:
+    - "16686:16686"
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --enable-feature=exemplar-storage
+    configs:
+    - source: prometheus_conf
+      target: /etc/prometheus/prometheus.yml
+    ports:
+    - "9090:9090"
+  loki:
+    image: grafana/loki:3.4.4
+  grafana:
+    image: grafana/grafana:12.0.2
+    configs:
+    - source: grafana_conf
+      target: /etc/grafana/grafana.ini
+    - source: grafana_datasources
+      target: /etc/grafana/provisioning/datasources/datasources.yml
+    - source: grafana_dashboards
+      target: /etc/grafana/provisioning/dashboards/dashboards.yml
+    - source: grafana_sample_dashboard
+      target: /etc/grafana/provisioning/dashboards/sample.json
+    ports:
+    - "3000:3000"
+
+configs:
+  otel_collector_conf:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            http:
+              endpoint: ":4318"
+      exporters:
+        otlphttp/jaeger:
+          endpoint: http://jaeger:4318
+        prometheus:
+          endpoint: ":8889"
+          enable_open_metrics: true
+        otlphttp/loki:
+          endpoint: http://loki:3100/otlp
+      processors:
+        batch:
+      service:
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [otlphttp/jaeger]
+          metrics:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [prometheus]
+          logs:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [otlphttp/loki]
+  prometheus_conf:
+    content: |
+      global:
+        scrape_interval: 5s
+      scrape_configs:
+      - job_name: "otel-collector"
+        scrape_interval: 10s
+        static_configs:
+        - targets: ["otel-collector:8889"]
+  grafana_conf:
+    content: |
+      [auth.anonymous]
+      enabled = true
+      org_role = Admin
+  grafana_datasources:
+    content: |
+      apiVersion: 1
+      datasources:
+      - uid: prometheus
+        name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        jsonData:
+          httpMethod: POST
+          exemplarTraceIdDestinations:
+          - datasourceUid: jaeger
+            name: trace_id
+      - uid: jaeger
+        name: Jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger:16686
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: "loki"
+            spanStartTimeShift: "-1m"
+            spanEndTimeShift: "1m"
+            tags:
+            - key: "service.instance.id"
+              value: "service_instance_id"
+            customQuery: true
+            query: "{$$$${__tags}} | span_id=`$$$${__span.spanId}`"
+      - uid: loki
+        name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        jsonData:
+          derivedFields:
+          - datasourceUid: jaeger
+            name: trace_id
+            matcherType: label
+            matcherRegex: trace_id
+            url: "$$$${__value.raw}"
+            urlDisplayLabel: "View Trace"
+  grafana_dashboards:
+    content: |
+      apiVersion: 1
+      providers:
+      - name: dashboards
+        type: file
+        options:
+          path: /etc/grafana/provisioning/dashboards
+          foldersFromFilesStructure: true
+  grafana_sample_dashboard:
+    content: |
+      {
+        "id": 1,
+        "uid": "XZNh5I-mk",
+        "version": 1,
+        "schemaVersion": 41,
+        "title": "Sample",
+        "time": {
+          "from": "now-15m",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 60,
+            "title": "HTTP requests count over 1 min",
+            "type": "timeseries",
+            "pluginVersion": "12.0.2",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus",
+              "default": true
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            },
+            "options": {
+              "legend": {
+                "calcs": [
+                  "mean",
+                  "lastNotNull"
+                ],
+                "displayMode": "table"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "uid": "prometheus",
+                  "type": "prometheus"
+                },
+                "expr": "increase(http_server_request_duration_seconds_count{exported_job=\"event-service\"}[1m])",
+                "legendFormat": "{{http_request_method}} {{http_route}}",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 61,
+            "title": "HTTP requests average duration over 1 min",
+            "type": "timeseries",
+            "pluginVersion": "12.0.2",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus",
+              "default": true
+            },
+            "fieldConfig": {
+              "defaults": {
+                "unit": "s"
+              }
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            },
+            "options": {
+              "legend": {
+                "calcs": [
+                  "mean",
+                  "lastNotNull"
+                ],
+                "displayMode": "table"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "uid": "prometheus",
+                  "type": "prometheus"
+                },
+                "expr": "sum(increase(http_server_request_duration_seconds_sum{exported_job=\"event-service\"}[1m])) by (http_request_method, http_route)\r\n/\r\nsum(increase(http_server_request_duration_seconds_count{exported_job=\"event-service\"}[1m])) by (http_request_method, http_route)",
+                "legendFormat": "{{http_request_method}} {{http_route}}",
+                "refId": "A"
+              }
+            ]
+          },
+          {
+            "id": 62,
+            "title": "Events processing over 1m",
+            "type": "timeseries",
+            "pluginVersion": "12.0.2",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus",
+              "default": true
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 8
+            },
+            "options": {
+              "legend": {
+                "calcs": [
+                  "mean",
+                  "lastNotNull"
+                ],
+                "displayMode": "table"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "exemplar": true,
+                "expr": "increase(event_processing_operation_count_total{exported_job=\"event-processor\"}[1m])",
+                "legendFormat": "{{status}}",
+                "refId": "A"
+              }
+            ]
+          }
+        ]
+      }

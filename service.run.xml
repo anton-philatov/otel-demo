@@ -2,6 +2,7 @@
   <configuration default="false" name="service" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
     <module name="otel-demo.service.main" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="ru.cft.otel.demo.Application" />
+    <option name="VM_PARAMETERS" value="-javaagent:opentelemetry-javaagent.jar -Dotel.service.name=event-service -Dotel.metric.export.interval=5000" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
